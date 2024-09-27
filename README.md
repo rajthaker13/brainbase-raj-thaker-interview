@@ -74,9 +74,9 @@ For the first milestone, complete the Chrome Extension to record actions on a we
 
 The success criteria for this milestone is:
 
-- [] Chrome Extension can be accessed through the Chrome Browser
-- [] Chrome Extension UI is completed (Start/Stop Record buttons, endpoint input)
-- [] Chrome Exntesion can record and locally store the actions:
+- [ ] Chrome Extension can be accessed through the Chrome Browser
+- [ ] Chrome Extension UI is completed (Start/Stop Record buttons, endpoint input)
+- [ ] Chrome Exntesion can record and locally store the actions:
 
     - Mouse move
     - Scroll
@@ -85,34 +85,34 @@ The success criteria for this milestone is:
     - Href (change pages)
 
     with the correct parameters (click should have an identifier for the component, mouse move should have coordinates, etc.)
-- [] Chrome Extension can hit the correct server endpoints to save recordings
+- [ ] Chrome Extension can hit the correct server endpoints to save recordings
 
 ### Milestone 2: Recreating movements
 For the second milestone, complete the worker to recreate the workflows created.
 
 The success criteria for this milestone is:
 
-- [] Worker can run a headless browser locally
-- [] Multiple workers can be run in parallel at the same time (if you hit `/uipi/run/endpoint_1` and `/uipi/run/endpoint_2` at the same time, both should run as subprocesses without blocking each other)
-- [] The headless browser can recreate the recorded workflow accurately (this is tested by scenarios outlined below)
+- [ ] Worker can run a headless browser locally
+- [ ] Multiple workers can be run in parallel at the same time (if you hit `/uipi/run/endpoint_1` and `/uipi/run/endpoint_2` at the same time, both should run as subprocesses without blocking each other)
+- [ ] The headless browser can recreate the recorded workflow accurately (this is tested by scenarios outlined below)
 
 ### Milestone 3: Fault tolerance
 Browser automation is famously difficult, mainly because the underlying elements can change identifiers between different browser instances.
 
 For Milestone 3, we want you to think about how to make the system more resilient. Here are some ideas but feel free to come up with your own:
 
-- [] Saving cookies as well so that the started up browser instance is as close as possible to the original instance
-- [] Using multiple identifiers in a waterfall
+- [ ] Saving cookies as well so that the started up browser instance is as close as possible to the original instance
+- [ ] Using multiple identifiers in a waterfall
 
 ## Scenarios
 
 Your implementation will be tested on the following scenarios, which range from easy to hard:
 
-- [] (EASY) Navigate the [Y Combinator](https://www.ycombinator.com/) website:
+- [ ] (EASY) Navigate the [Y Combinator](https://www.ycombinator.com/) website:
     Go to https://www.ycombinator.com/ -> Move mouse to Companies tab -> Click on Top Companies -> Click on See all companies
-- [] (MEDIUM) Use [ChatGPT](https://chatgpt.com/):
+- [ ] (MEDIUM) Use [ChatGPT](https://chatgpt.com/):
     Go to https://chatgpt.com/ -> Click on New Chat button -> Click on input field -> Type in "Who's the only musician to ever receive a Nobel Prize in Literature?" -> Click Submit
-- [] (HARD) Add to cart on [Amazon](https://www.amazon.com/):
+- [ ] (HARD) Add to cart on [Amazon](https://www.amazon.com/):
     Go to https://amazon.com/ -> Click on search input box -> Type in "Softwar: An Intimate Portrait of Larry Ellison and Oracle" -> Click on first result -> Click on Add to Cart
 
 MEDIUM and HIGH scenarios assume that you have saved your cookies with the workflow to go around authentication.
