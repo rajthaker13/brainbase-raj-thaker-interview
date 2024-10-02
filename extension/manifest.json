@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "Brainbase UiPI Recorder",
+    "version": "4.0",
+    "description": "Record and save user interactions on a webpage.",
+    "permissions": [
+      "activeTab",
+      "storage",
+      "scripting"
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+        "16": "icons/icon16.png",
+        "32": "icons/icon32.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+      }
+    },
+    "icons": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"]
+      }
+    ]
+  }
