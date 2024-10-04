@@ -25,18 +25,19 @@ function updateButtonState(isRecording) {
 function promptEndpointAndSave() {
     const endpoint = prompt('Enter an endpoint for this workflow:');
     if (endpoint) {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const currentUrl = tabs[0].url;
-            chrome.storage.local.get('recordedActions', (data) => {
-                const recordedActions = data.recordedActions || [];
-                const workflow = recordedActions;
+        chrome.runtime.sendMessage({ type: 'getRecordedActions' }, (response) => {
+            const workflow = response.actions;
+            if (workflow && workflow.length > 0) {
                 saveWorkflow(endpoint, workflow);
-            });
+            } else {
+                alert('No actions were recorded.');
+            }
         });
     }
 }
 
 function saveWorkflow(endpoint, workflow) {
+    console.log('Saving workflow:', { endpoint, workflow });  // Log the data being sent
     fetch('http://localhost:8000/uipi/create', {
         method: 'POST',
         headers: {
@@ -46,14 +47,16 @@ function saveWorkflow(endpoint, workflow) {
     })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                return response.text().then(text => {
+                    throw new Error(`Network response was not ok: ${response.status} ${response.statusText}\n${text}`);
+                });
             }
             return response.json();
         })
         .then(data => {
             console.log('Workflow saved successfully:', data);
             alert('Workflow saved successfully');
-            chrome.storage.local.remove('recordedActions');
+            chrome.runtime.sendMessage({ type: 'clearRecordedActions' });
         })
         .catch(error => {
             console.error('Error:', error);

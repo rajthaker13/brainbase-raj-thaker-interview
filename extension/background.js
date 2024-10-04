@@ -30,22 +30,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             recordedActions = []; // Clear previous actions when starting a new recording
         } else {
             // Save recorded actions when recording stops
-            chrome.storage.local.set({ recordedActions });
+            try {
+                chrome.storage.local.set({ recordedActions: recordedActions });
+            } catch (error) {
+                console.error('Error stringifying recordedActions:', error);
+                chrome.storage.local.set({ recordedActions: '[]' });
+            }
         }
 
         sendResponse({ isRecording });
-        return true; // Indicates that the response is sent asynchronously
     } else if (message.type === 'recordAction' && isRecording) {
         recordedActions.push(message.action);
         console.log('Recorded action:', message.action);
-        sendResponse({ success: true }); // Send a response to acknowledge receipt
+        sendResponse({ success: true });
+    } else if (message.type === 'getRecordedActions') {
+        sendResponse({ actions: recordedActions });
+    } else if (message.type === 'clearRecordedActions') {
+        recordedActions = [];
+        chrome.storage.local.remove('recordedActions');
     }
     return true; // Indicates that the response is sent asynchronously
 });
 
-// Initialize recording state
-chrome.storage.local.get('isRecording', (data) => {
+// Initialize recording state and actions
+chrome.storage.local.get(['isRecording', 'recordedActions'], (data) => {
     isRecording = data.isRecording || false;
+    try {
+        if (typeof data.recordedActions === 'string') {
+            recordedActions = JSON.parse(data.recordedActions);
+        } else if (Array.isArray(data.recordedActions)) {
+            recordedActions = data.recordedActions;
+        } else {
+            recordedActions = [];
+        }
+    } catch (error) {
+        console.error('Error parsing recordedActions:', error);
+        recordedActions = [];
+    }
+
+    // Ensure recordedActions is always an array
+    if (!Array.isArray(recordedActions)) {
+        recordedActions = [];
+    }
+
+    console.log('Initialized recordedActions:', recordedActions);
+
     // Notify all tabs about the initial recording state
     chrome.tabs.query({}, async function (tabs) {
         for (const tab of tabs) {
