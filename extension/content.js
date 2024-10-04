@@ -91,22 +91,48 @@
 
     function recordClick(event) {
         if (!isRecording) return;
+        let target = event.target;
+
+        // Traverse up the DOM tree to find the most relevant clickable parent
+        while (target && target !== document.body) {
+            if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.onclick || target.role === 'button') {
+                break;
+            }
+            target = target.parentElement;
+        }
+
+        const rect = target.getBoundingClientRect();
         const action = {
             type: 'click',
-            x: event.clientX,
-            y: event.clientY,
-            element: event.target.tagName,
-            elementId: event.target.id,
-            elementClasses: event.target.className,
-            timestamp: Date.now()
+            element: target.tagName,
+            elementId: target.id,
+            elementClasses: Array.from(target.classList),  // Change to list
+            value: target.textContent.trim(),
+            href: target.href || '',
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+            timestamp: Date.now(),
+            path: getElementPath(target)
         };
         console.log('Recorded action:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {
             console.log('Error sending click action:', error);
         });
+    }
 
-        // Check if href changed after click
-        setTimeout(checkHrefChange, 100);
+    function getElementPath(element) {
+        const path = [];
+        while (element && element !== document.body) {
+            let selector = element.tagName.toLowerCase();
+            if (element.id) {
+                selector += `#${element.id}`;
+            } else if (element.className) {
+                selector += `.${element.className.split(' ').join('.')}`;
+            }
+            path.unshift(selector);
+            element = element.parentElement;
+        }
+        return path.join(' > ');
     }
 
     function recordScroll(event) {
