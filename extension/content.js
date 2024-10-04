@@ -1,8 +1,10 @@
 let isRecording = false;
+let lastRecordedHref = '';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'recordingStateChanged') {
         isRecording = message.isRecording;
+        console.log('Recording state changed:', isRecording);
         if (isRecording) {
             startRecording();
         } else {
@@ -14,39 +16,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Check initial recording state
 chrome.storage.local.get('isRecording', (data) => {
     isRecording = data.isRecording || false;
+    console.log('Initial recording state:', isRecording);
     if (isRecording) {
         startRecording();
     }
 });
 
 function startRecording() {
+    console.log('Starting recording');
+    lastRecordedHref = window.location.href;
+    recordHref(); // Record initial URL
     document.addEventListener('mousemove', recordMouseMove);
     document.addEventListener('click', recordClick);
     document.addEventListener('scroll', recordScroll);
     document.addEventListener('input', recordInput);
-    window.addEventListener('beforeunload', recordHref);
+    window.addEventListener('popstate', recordHref);
 }
 
 function stopRecording() {
+    console.log('Stopping recording');
     document.removeEventListener('mousemove', recordMouseMove);
     document.removeEventListener('click', recordClick);
     document.removeEventListener('scroll', recordScroll);
     document.removeEventListener('input', recordInput);
-    window.removeEventListener('beforeunload', recordHref);
+    window.removeEventListener('popstate', recordHref);
+}
+
+function sendMessageSafely(message) {
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(message, response => {
+            if (chrome.runtime.lastError) {
+                console.log("Failed to send message to background script:", chrome.runtime.lastError);
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(response);
+            }
+        });
+    });
 }
 
 function recordMouseMove(event) {
+    if (!isRecording) return;
     const action = {
         type: 'mousemove',
         x: event.clientX,
         y: event.clientY,
         timestamp: Date.now()
     };
-    console.log(action);
-    chrome.runtime.sendMessage({ type: 'recordAction', action });
+    console.log('Recorded action:', action);
+    sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+        console.log('Error sending mousemove action:', error);
+    });
 }
 
 function recordClick(event) {
+    if (!isRecording) return;
     const action = {
         type: 'click',
         x: event.clientX,
@@ -56,22 +80,31 @@ function recordClick(event) {
         elementClasses: event.target.className,
         timestamp: Date.now()
     };
-    console.log(action);
-    chrome.runtime.sendMessage({ type: 'recordAction', action });
+    console.log('Recorded action:', action);
+    sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+        console.log('Error sending click action:', error);
+    });
+
+    // Check if href changed after click
+    setTimeout(checkHrefChange, 100);
 }
 
 function recordScroll(event) {
+    if (!isRecording) return;
     const action = {
         type: 'scroll',
         scrollX: window.scrollX,
         scrollY: window.scrollY,
         timestamp: Date.now()
     };
-    console.log(action);
-    chrome.runtime.sendMessage({ type: 'recordAction', action });
+    console.log('Recorded action:', action);
+    sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+        console.log('Error sending scroll action:', error);
+    });
 }
 
 function recordInput(event) {
+    if (!isRecording) return;
     const action = {
         type: 'input',
         element: event.target.tagName,
@@ -80,16 +113,31 @@ function recordInput(event) {
         value: event.target.value,
         timestamp: Date.now()
     };
-    console.log(action);
-    chrome.runtime.sendMessage({ type: 'recordAction', action });
+    console.log('Recorded action:', action);
+    sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+        console.log('Error sending input action:', error);
+    });
 }
 
-function recordHref(event) {
-    const action = {
-        type: 'href',
-        href: window.location.href,
-        timestamp: Date.now()
-    };
-    console.log(action);
-    chrome.runtime.sendMessage({ type: 'recordAction', action });
+function recordHref() {
+    if (!isRecording) return;
+    const currentHref = window.location.href;
+    if (currentHref !== lastRecordedHref) {
+        const action = {
+            type: 'href',
+            href: currentHref,
+            timestamp: Date.now()
+        };
+        console.log('Recorded action:', action);
+        sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+            console.log('Error sending href action:', error);
+        });
+        lastRecordedHref = currentHref;
+    }
+}
+
+function checkHrefChange() {
+    if (window.location.href !== lastRecordedHref) {
+        recordHref();
+    }
 }

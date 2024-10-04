@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Brainbase UiPI Recorder",
-    "version": "4.0",
+    "version": "7.0",
     "description": "Record and save user interactions on a webpage.",
     "permissions": [
       "activeTab",
