@@ -6,6 +6,8 @@
 
     let isRecording = false;
     let lastRecordedHref = '';
+    let lastRecordedMouseMove = 0;
+    const MOUSE_MOVE_THROTTLE = 100; // Minimum ms between mouse move recordings
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.type === 'recordingStateChanged') {
@@ -31,19 +33,19 @@
     function startRecording() {
         console.log('Starting recording');
         lastRecordedHref = window.location.href;
-        recordInitialHref(); // Record initial URL as the first action
-        document.addEventListener('mousemove', recordMouseMove);
+        recordInitialHref();
+        document.addEventListener('mousemove', throttledRecordMouseMove);
         document.addEventListener('click', recordClick);
-        document.addEventListener('scroll', recordScroll);
+        document.addEventListener('scroll', throttledRecordScroll);
         document.addEventListener('input', recordInput);
         window.addEventListener('popstate', recordHref);
     }
 
     function stopRecording() {
         console.log('Stopping recording');
-        document.removeEventListener('mousemove', recordMouseMove);
+        document.removeEventListener('mousemove', throttledRecordMouseMove);
         document.removeEventListener('click', recordClick);
-        document.removeEventListener('scroll', recordScroll);
+        document.removeEventListener('scroll', throttledRecordScroll);
         document.removeEventListener('input', recordInput);
         window.removeEventListener('popstate', recordHref);
     }
@@ -75,49 +77,61 @@
         });
     }
 
-    function recordMouseMove(event) {
+    function throttledRecordMouseMove(event) {
         if (!isRecording) return;
-        const action = {
-            type: 'mousemove',
-            x: event.clientX,
-            y: event.clientY,
-            timestamp: Date.now()
-        };
-        console.log('Recorded action:', action);
-        sendMessageSafely({ type: 'recordAction', action }).catch(error => {
-            console.log('Error sending mousemove action:', error);
-        });
+        const now = Date.now();
+        if (now - lastRecordedMouseMove < MOUSE_MOVE_THROTTLE) return;
+
+        const target = event.target;
+        if (isInteractiveElement(target)) {
+            lastRecordedMouseMove = now;
+            const action = {
+                type: 'mousemove',
+                x: event.clientX,
+                y: event.clientY,
+                timestamp: now,
+                targetElement: getElementInfo(target)
+            };
+            console.log('Recorded mouse move:', action);
+            sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+                console.log('Error sending mousemove action:', error);
+            });
+        }
+    }
+
+    function isInteractiveElement(element) {
+        const interactiveTags = ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'];
+        return interactiveTags.includes(element.tagName) ||
+            element.onclick ||
+            element.role === 'button' ||
+            element.tabIndex >= 0;
     }
 
     function recordClick(event) {
         if (!isRecording) return;
-        let target = event.target;
-
-        // Traverse up the DOM tree to find the most relevant clickable parent
-        while (target && target !== document.body) {
-            if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.onclick || target.role === 'button') {
-                break;
-            }
-            target = target.parentElement;
-        }
-
-        const rect = target.getBoundingClientRect();
+        const target = event.target;
         const action = {
             type: 'click',
-            element: target.tagName,
-            elementId: target.id,
-            elementClasses: Array.from(target.classList),  // Change to list
-            value: target.textContent.trim(),
-            href: target.href || '',
-            x: Math.round(rect.left + rect.width / 2),
-            y: Math.round(rect.top + rect.height / 2),
+            x: event.clientX,
+            y: event.clientY,
             timestamp: Date.now(),
-            path: getElementPath(target)
+            targetElement: getElementInfo(target)
         };
-        console.log('Recorded action:', action);
+        console.log('Recorded click:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {
             console.log('Error sending click action:', error);
         });
+    }
+
+    function getElementInfo(element) {
+        return {
+            tagName: element.tagName,
+            id: element.id,
+            classes: Array.from(element.classList),
+            textContent: element.textContent.trim().substring(0, 50), // Limit text content
+            href: element.href || '',
+            path: getElementPath(element)
+        };
     }
 
     function getElementPath(element) {
@@ -135,15 +149,22 @@
         return path.join(' > ');
     }
 
-    function recordScroll(event) {
+    let lastScrollTime = 0;
+    const SCROLL_THROTTLE = 200; // Minimum ms between scroll recordings
+
+    function throttledRecordScroll() {
         if (!isRecording) return;
+        const now = Date.now();
+        if (now - lastScrollTime < SCROLL_THROTTLE) return;
+
+        lastScrollTime = now;
         const action = {
             type: 'scroll',
             scrollX: window.scrollX,
             scrollY: window.scrollY,
-            timestamp: Date.now()
+            timestamp: now
         };
-        console.log('Recorded action:', action);
+        console.log('Recorded scroll:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {
             console.log('Error sending scroll action:', error);
         });
@@ -151,15 +172,14 @@
 
     function recordInput(event) {
         if (!isRecording) return;
+        const target = event.target;
         const action = {
             type: 'input',
-            element: event.target.tagName,
-            elementId: event.target.id,
-            elementClasses: event.target.className,
-            value: event.target.value,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            targetElement: getElementInfo(target),
+            value: target.value
         };
-        console.log('Recorded action:', action);
+        console.log('Recorded input:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {
             console.log('Error sending input action:', error);
         });
@@ -174,17 +194,11 @@
                 href: currentHref,
                 timestamp: Date.now()
             };
-            console.log('Recorded action:', action);
+            console.log('Recorded href change:', action);
             sendMessageSafely({ type: 'recordAction', action }).catch(error => {
                 console.log('Error sending href action:', error);
             });
             lastRecordedHref = currentHref;
-        }
-    }
-
-    function checkHrefChange() {
-        if (window.location.href !== lastRecordedHref) {
-            recordHref();
         }
     }
 })();
