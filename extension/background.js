@@ -22,7 +22,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Notify all tabs about the recording state change
         chrome.tabs.query({}, async function (tabs) {
             for (let tab of tabs) {
-                await sendMessageToTab(tab.id, { type: 'recordingStateChanged', isRecording });
+                try {
+                    await chrome.tabs.sendMessage(tab.id, { type: 'recordingStateChanged', isRecording });
+                } catch (error) {
+                    console.log(`Failed to send message to tab ${tab.id}:`, error);
+                }
             }
         });
 
@@ -30,46 +34,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             recordedActions = []; // Clear previous actions when starting a new recording
         } else {
             // Save recorded actions when recording stops
-            try {
-                chrome.storage.local.set({ recordedActions: recordedActions });
-            } catch (error) {
-                console.error('Error stringifying recordedActions:', error);
-                chrome.storage.local.set({ recordedActions: '[]' });
-            }
+            chrome.storage.local.set({ recordedActions: JSON.stringify(recordedActions) });
         }
 
         sendResponse({ isRecording });
+        return false; // Synchronous response
     } else if (message.type === 'recordAction' && isRecording) {
         recordedActions.push(message.action);
         console.log('Recorded action:', message.action);
         sendResponse({ success: true });
+        return false; // Synchronous response
     } else if (message.type === 'getRecordedActions') {
         sendResponse({ actions: recordedActions });
+        return false; // Synchronous response
     } else if (message.type === 'clearRecordedActions') {
         recordedActions = [];
         chrome.storage.local.remove('recordedActions');
+        sendResponse({ success: true });
+        return false; // Synchronous response
     }
-    return true; // Indicates that the response is sent asynchronously
 });
 
 // Initialize recording state and actions
 chrome.storage.local.get(['isRecording', 'recordedActions'], (data) => {
     isRecording = data.isRecording || false;
     try {
-        if (typeof data.recordedActions === 'string') {
-            recordedActions = JSON.parse(data.recordedActions);
-        } else if (Array.isArray(data.recordedActions)) {
-            recordedActions = data.recordedActions;
-        } else {
-            recordedActions = [];
-        }
+        recordedActions = JSON.parse(data.recordedActions || '[]');
     } catch (error) {
         console.error('Error parsing recordedActions:', error);
-        recordedActions = [];
-    }
-
-    // Ensure recordedActions is always an array
-    if (!Array.isArray(recordedActions)) {
         recordedActions = [];
     }
 
@@ -78,7 +70,11 @@ chrome.storage.local.get(['isRecording', 'recordedActions'], (data) => {
     // Notify all tabs about the initial recording state
     chrome.tabs.query({}, async function (tabs) {
         for (const tab of tabs) {
-            await sendMessageToTab(tab.id, { type: 'recordingStateChanged', isRecording });
+            try {
+                await chrome.tabs.sendMessage(tab.id, { type: 'recordingStateChanged', isRecording });
+            } catch (error) {
+                console.log(`Failed to send initial state to tab ${tab.id}:`, error);
+            }
         }
     });
 });
@@ -91,7 +87,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             files: ['content.js']
         }).then(() => {
             console.log('Content script injected into tab', tabId);
-            sendMessageToTab(tabId, { type: 'recordingStateChanged', isRecording });
+            chrome.tabs.sendMessage(tabId, { type: 'recordingStateChanged', isRecording });
         }).catch((error) => {
             console.log('Failed to inject content script into tab', tabId, error);
         });

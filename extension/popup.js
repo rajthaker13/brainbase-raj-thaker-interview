@@ -6,12 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.getElementById('toggleRecording').addEventListener('click', () => {
-    chrome.runtime.sendMessage({ type: 'toggleRecording' }, (response) => {
-        updateButtonState(response.isRecording);
-        if (!response.isRecording) {
-            promptEndpointAndSave();
-        }
-    });
+    chrome.runtime.sendMessage({ type: 'toggleRecording' })
+        .then(response => {
+            updateButtonState(response.isRecording);
+            if (!response.isRecording) {
+                promptEndpointAndSave();
+            }
+        })
+        .catch(error => console.error('Error toggling recording:', error));
 });
 
 function updateButtonState(isRecording) {
@@ -25,19 +27,21 @@ function updateButtonState(isRecording) {
 function promptEndpointAndSave() {
     const endpoint = prompt('Enter an endpoint for this workflow:');
     if (endpoint) {
-        chrome.runtime.sendMessage({ type: 'getRecordedActions' }, (response) => {
-            const workflow = response.actions;
-            if (workflow && workflow.length > 0) {
-                saveWorkflow(endpoint, workflow);
-            } else {
-                alert('No actions were recorded.');
-            }
-        });
+        chrome.runtime.sendMessage({ type: 'getRecordedActions' })
+            .then(response => {
+                const workflow = response.actions;
+                if (workflow && workflow.length > 0) {
+                    saveWorkflow(endpoint, workflow);
+                } else {
+                    alert('No actions were recorded.');
+                }
+            })
+            .catch(error => console.error('Error getting recorded actions:', error));
     }
 }
 
 function saveWorkflow(endpoint, workflow) {
-    console.log('Saving workflow:', { endpoint, workflow });  // Log the data being sent
+    console.log('Saving workflow:', { endpoint, workflow });
     fetch('http://localhost:8000/uipi/create', {
         method: 'POST',
         headers: {
@@ -56,8 +60,9 @@ function saveWorkflow(endpoint, workflow) {
         .then(data => {
             console.log('Workflow saved successfully:', data);
             alert('Workflow saved successfully');
-            chrome.runtime.sendMessage({ type: 'clearRecordedActions' });
+            return chrome.runtime.sendMessage({ type: 'clearRecordedActions' });
         })
+        .then(() => console.log('Recorded actions cleared'))
         .catch(error => {
             console.error('Error:', error);
             alert('Failed to save workflow: ' + error.message);
