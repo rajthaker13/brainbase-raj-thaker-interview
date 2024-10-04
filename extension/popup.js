@@ -29,10 +29,7 @@ function promptEndpointAndSave() {
             const currentUrl = tabs[0].url;
             chrome.storage.local.get('recordedActions', (data) => {
                 const recordedActions = data.recordedActions || [];
-                const workflow = {
-                    startUrl: currentUrl,
-                    actions: recordedActions
-                };
+                const workflow = recordedActions;
                 saveWorkflow(endpoint, workflow);
             });
         });
@@ -47,13 +44,19 @@ function saveWorkflow(endpoint, workflow) {
         },
         body: JSON.stringify({ endpoint, workflow })
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Workflow saved successfully:', data);
             alert('Workflow saved successfully');
             chrome.storage.local.remove('recordedActions');
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Failed to save workflow');
+            alert('Failed to save workflow: ' + error.message);
         });
 }

@@ -31,7 +31,7 @@
     function startRecording() {
         console.log('Starting recording');
         lastRecordedHref = window.location.href;
-        recordHref(); // Record initial URL
+        recordInitialHref(); // Record initial URL as the first action
         document.addEventListener('mousemove', recordMouseMove);
         document.addEventListener('click', recordClick);
         document.addEventListener('scroll', recordScroll);
@@ -58,6 +58,18 @@
                     resolve(response);
                 }
             });
+        });
+    }
+
+    function recordInitialHref() {
+        const action = {
+            type: 'initial_href',
+            href: window.location.href,
+            timestamp: Date.now()
+        };
+        console.log('Recorded initial href:', action);
+        sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+            console.log('Error sending initial href action:', error);
         });
     }
 
