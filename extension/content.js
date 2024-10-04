@@ -65,7 +65,9 @@
         const action = {
             type: 'initial_href',
             href: window.location.href,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            windowWidth: window.innerWidth,
+            windowHeight: window.innerHeight
         };
         console.log('Recorded initial href:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {

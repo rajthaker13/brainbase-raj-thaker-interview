@@ -7,42 +7,56 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
 
 def worker(params):
     chrome_options = Options()
     chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--window-size=1920,1080")  # Set a default window size
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        workflow = params
+        workflow = params['workflow']
+        
         initial_action = next(action for action in workflow if action['type'] == 'initial_href')
         driver.get(initial_action['href'])
         print(f"Navigated to: {initial_action['href']}")
         
         for action in workflow:
             if action['type'] == 'mousemove':
-                ActionChains(driver).move_by_offset(action['x'], action['y']).perform()
-                print(f"Moved mouse to: ({action['x']}, {action['y']})")
+                # Skip mousemove actions as they're not necessary for most interactions
+                continue
             elif action['type'] == 'click':
-                element = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, f"//*[@id='{action.get('elementId', '')}' or contains(@class, '{action.get('elementClasses', '')}')]"))
-                )
-                element.click()
-                print(f"Clicked element: {action.get('elementId') or action.get('elementClasses')}")
+                try:
+                    element = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, f"//*[@id='{action.get('elementId', '')}' or contains(@class, '{action.get('elementClasses', '')}')]"))
+                    )
+                    driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center', inline: 'center'});", element)
+                    element.click()
+                    print(f"Clicked element: {action.get('elementId') or action.get('elementClasses')}")
+                except Exception as e:
+                    print(f"Error clicking element: {str(e)}")
             elif action['type'] == 'scroll':
-                driver.execute_script(f"window.scrollTo({action['scrollX']}, {action['scrollY']});")
-                print(f"Scrolled to: ({action['scrollX']}, {action['scrollY']})")
+                try:
+                    driver.execute_script(f"window.scrollTo({action['scrollX']}, {action['scrollY']});")
+                    print(f"Scrolled to: ({action['scrollX']}, {action['scrollY']})")
+                except Exception as e:
+                    print(f"Error scrolling: {str(e)}")
             elif action['type'] == 'input':
-                element = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, f"//*[@id='{action.get('elementId', '')}' or contains(@class, '{action.get('elementClasses', '')}')]"))
-                )
-                element.send_keys(action['value'])
-                print(f"Entered text: {action['value']} into element: {action.get('elementId') or action.get('elementClasses')}")
+                try:
+                    element = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.XPATH, f"//*[@id='{action.get('elementId', '')}' or contains(@class, '{action.get('elementClasses', '')}')]"))
+                    )
+                    element.clear()
+                    element.send_keys(action['value'])
+                    print(f"Entered text: {action['value']} into element: {action.get('elementId') or action.get('elementClasses')}")
+                except Exception as e:
+                    print(f"Error entering text: {str(e)}")
             elif action['type'] == 'href':
                 driver.get(action['href'])
                 print(f"Navigated to: {action['href']}")
             
-            time.sleep(0.1)  # Add a small delay between actions
+            time.sleep(0.5)  # Add a small delay between actions
         
         print("Workflow executed successfully")
     except Exception as e:

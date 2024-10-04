@@ -71,34 +71,46 @@ async def run_uipi(endpoint: str, db: AsyncSession = Depends(get_db)):
     if not uipi:
         raise HTTPException(status_code=404, detail="Endpoint not found")
     
-    # Prepare the params
-    params = uipi.workflow  # This could be any data you want to pass to worker.py
-    params_json = json.dumps(params)
+    workflow = uipi.workflow
+    if workflow:
+        initial_action = next(action for action in workflow if action['type'] == 'initial_href')
+        recorded_width = initial_action.get('windowWidth', 1920)
+        recorded_height = initial_action.get('windowHeight', 1080)
+        
+        params = {
+            'workflow': workflow,
+            'recorded_width': recorded_width,
+            'recorded_height': recorded_height
+        }
+        
+        params_json = json.dumps(params)
 
-    # Path to worker.py
-    script_path = os.path.join(os.path.dirname(__file__), 'worker.py')
+        # Path to worker.py
+        script_path = os.path.join(os.path.dirname(__file__), 'worker.py')
 
-    # Command to run worker.py with params
-    command = [sys.executable, script_path, '--params', params_json]
+        # Command to run worker.py with params
+        command = [sys.executable, script_path, '--params', params_json]
 
-    try:
-        # Run worker.py asynchronously
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
+        try:
+            # Run worker.py asynchronously
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
 
-        if process.returncode != 0:
-            raise HTTPException(status_code=500, detail=stderr.decode())
+            if process.returncode != 0:
+                raise HTTPException(status_code=500, detail=stderr.decode())
 
-        # Parse the output from worker.py
-        output = stdout.decode()
-        return {"message": f"Workflow for endpoint '{endpoint}' executed", "output": output}
+            # Parse the output from worker.py
+            output = stdout.decode()
+            return {"message": f"Workflow for endpoint '{endpoint}' executed", "output": output}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        raise HTTPException(status_code=404, detail="Workflow not found")
 
 # List all UIPI entries
 @app.get("/uipi/list", response_model=List[UIPIBase])
