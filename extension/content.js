@@ -38,6 +38,7 @@
         document.addEventListener('click', recordClick);
         document.addEventListener('scroll', throttledRecordScroll);
         document.addEventListener('input', recordInput);
+        document.addEventListener('keydown', recordKeydown);
         window.addEventListener('popstate', recordHref);
     }
 
@@ -47,6 +48,7 @@
         document.removeEventListener('click', recordClick);
         document.removeEventListener('scroll', throttledRecordScroll);
         document.removeEventListener('input', recordInput);
+        document.removeEventListener('keydown', recordKeydown);
         window.removeEventListener('popstate', recordHref);
     }
 
@@ -194,12 +196,31 @@
             type: 'input',
             timestamp: Date.now(),
             targetElement: getElementInfo(target),
-            value: target.value
+            value: target.value,
+            inputType: event.inputType
         };
         console.log('Recorded input:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {
             console.log('Error sending input action:', error);
         });
+    }
+
+    function recordKeydown(event) {
+        if (!isRecording) return;
+        const target = event.target;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+            const action = {
+                type: 'keydown',
+                timestamp: Date.now(),
+                targetElement: getElementInfo(target),
+                key: event.key,
+                keyCode: event.keyCode
+            };
+            console.log('Recorded keydown:', action);
+            sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+                console.log('Error sending keydown action:', error);
+            });
+        }
     }
 
     function recordHref() {

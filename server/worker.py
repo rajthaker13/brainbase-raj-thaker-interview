@@ -104,9 +104,16 @@ def worker(params):
                 element = find_and_wait_for_element(driver, action['targetElement'])
                 if element:
                     element.clear()
-                    element.send_keys(action['targetElement']['textContent'])
-                    print(f"Entered text: '{action['targetElement']['textContent']}' into element")
+                    element.send_keys(action['value'])
+                    print(f"Entered text: '{action['value']}' into element")
                     time.sleep(0.5)  # Short wait after input
+            
+            elif action_type == 'keydown':
+                element = find_and_wait_for_element(driver, action['targetElement'])
+                if element:
+                    element.send_keys(action['key'])
+                    print(f"Pressed key: '{action['key']}' on element")
+                    time.sleep(0.1)  # Short wait after keypress
             
             elif action_type == 'mousemove':
                 # Ignore mousemove actions
