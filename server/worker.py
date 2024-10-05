@@ -9,7 +9,6 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-import pickle
 import undetected_chromedriver as uc
 
 def escape_css_class(cls):
@@ -59,7 +58,10 @@ def load_cookies(driver, cookies):
     for cookie in cookies:
         if 'expiry' in cookie:
             del cookie['expiry']
-        driver.add_cookie(cookie)
+        try:
+            driver.add_cookie(cookie)
+        except:
+            pass  # Silently ignore any cookie-setting errors
 
 def worker(params):
     options = uc.ChromeOptions()
@@ -116,7 +118,6 @@ def worker(params):
             # Check if page has changed unexpectedly
             if driver.current_url != target_url:
                 print(f"Page changed unexpectedly to: {driver.current_url}")
-                # You might want to add logic here to handle unexpected changes
         
         print("Workflow executed successfully")
     except Exception as e:
@@ -125,7 +126,6 @@ def worker(params):
         driver.quit()
 
 def set_cookies(driver, cookies):
-    successful_cookies = 0
     for cookie in cookies:
         try:
             cookie_copy = {k: v for k, v in cookie.items() if k in ['name', 'value', 'domain', 'path']}
@@ -133,12 +133,8 @@ def set_cookies(driver, cookies):
                 cookie_copy['domain'] = cookie_copy['domain'][1:]
             if cookie_copy['domain'] in driver.current_url:
                 driver.add_cookie(cookie_copy)
-                successful_cookies += 1
-            else:
-                print(f"Skipping cookie for domain {cookie_copy['domain']}")
-        except Exception as e:
-            print(f"Error adding cookie {cookie_copy.get('name')}: {str(e)}")
-    print(f"Successfully added {successful_cookies} out of {len(cookies)} cookies")
+        except:
+            pass  # Silently ignore any cookie-setting errors
 
 def find_and_wait_for_element(driver, element_info):
     locators = get_locators(element_info)
