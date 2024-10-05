@@ -9,34 +9,30 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import pickle
+import undetected_chromedriver as uc
 
 def escape_css_class(cls):
     return re.sub(r'([^a-zA-Z0-9_-])', r'\\\1', cls)
 
-def find_element_by_multiple_attributes(driver, action):
+def find_element_by_multiple_attributes(driver, element_info):
     locators = []
     
-    element_id = action.get('elementId')
-    if element_id:
-        locators.append((By.ID, element_id))
+    if element_info.get('id'):
+        locators.append((By.ID, element_info['id']))
     
-    element_classes = action.get('elementClasses')
-    if element_classes and isinstance(element_classes, list):
-        escaped_classes = [escape_css_class(cls) for cls in element_classes]
-        class_selector = ''.join([f".{cls}" for cls in escaped_classes])
-        locators.append((By.CSS_SELECTOR, class_selector))
+    if element_info.get('classes'):
+        class_selector = '.'.join(element_info['classes'])
+        locators.append((By.CSS_SELECTOR, f".{class_selector}"))
     
-    tag_name = action.get('element')
-    if tag_name:
-        locators.append((By.TAG_NAME, tag_name))
+    if element_info.get('tagName'):
+        locators.append((By.TAG_NAME, element_info['tagName']))
     
-    value = action.get('value', '')
-    if value:
-        locators.append((By.XPATH, f"//*[contains(text(), '{value}')]"))
+    if element_info.get('textContent'):
+        locators.append((By.XPATH, f"//*[contains(text(), '{element_info['textContent']}')]"))
     
-    path = action.get('path')
-    if path:
-        xpath = '//' + re.sub(r'>', '/', path).strip()
+    if element_info.get('path'):
+        xpath = '//' + '/'.join(element_info['path'].split(' > '))
         locators.append((By.XPATH, xpath))
     
     for by, value in locators:
@@ -59,13 +55,19 @@ def adjust_coordinates(driver, x, y):
     
     return adjusted_x, adjusted_y
 
+def load_cookies(driver, cookies):
+    for cookie in cookies:
+        if 'expiry' in cookie:
+            del cookie['expiry']
+        driver.add_cookie(cookie)
+
 def worker(params):
-    chrome_options = Options()
-    # chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=chrome_options)
+    options = uc.ChromeOptions()
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    driver = uc.Chrome(options=options)
     
     try:
         workflow = params.get('workflow', [])
@@ -73,70 +75,95 @@ def worker(params):
         for action in workflow:
             action_type = action.get('type')
             
-            if action_type == 'initial_href':
-                driver.get(action['href'])
-                print(f"Navigated to: {action['href']}")
-            
-            elif action_type == 'mousemove':
-                try:
-                    x, y = adjust_coordinates(driver, action['x'], action['y'])
-                    element = driver.execute_script(f"return document.elementFromPoint({x}, {y});")
-                    if element:
-                        ActionChains(driver).move_to_element(element).perform()
-                        print(f"Moved mouse to element at ({x}, {y})")
-                    else:
-                        print(f"No element found at ({x}, {y})")
-                except Exception as e:
-                    print(f"Error moving mouse: {str(e)}")
+            if action_type in ['initial_href', 'href']:
+                current_url = driver.current_url
+                target_url = action['href']
+                
+                if current_url != target_url:
+                    driver.get(target_url)
+                    print(f"Navigated to: {target_url}")
+                    
+                    # Wait for the page to load
+                    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                    time.sleep(2)  # Additional wait to ensure page is fully loaded
+                
+                # Set cookies without refreshing the page
+                if 'cookies' in action:
+                    set_cookies(driver, action['cookies'])
             
             elif action_type == 'click':
-                try:
-                    element = find_element_by_multiple_attributes(driver, action)
-                    if element:
-                        driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center', inline: 'center'});", element)
-                        # Use text content to ensure we're clicking the right element
-                        if action.get('value') == "See all companies":
-                            element = driver.find_element(By.XPATH, "//a[contains(text(), 'See all companies')]")
-                        ActionChains(driver).move_to_element(element).click().perform()
-                        print(f"Clicked element: {action.get('value') or 'N/A'}")
-                    else:
-                        print(f"Element not found for click action: {action}")
-                        x, y = adjust_coordinates(driver, action['x'], action['y'])
-                        driver.execute_script(f"document.elementFromPoint({x}, {y}).click();")
-                        print(f"Attempted JavaScript click at coordinates: ({x}, {y})")
-                except Exception as e:
-                    print(f"Error clicking element: {str(e)}")
-            
-            elif action_type == 'scroll':
-                try:
-                    scroll_x, scroll_y = adjust_coordinates(driver, action.get('scrollX', 0), action.get('scrollY', 0))
-                    driver.execute_script(f"window.scrollTo({scroll_x}, {scroll_y});")
-                    print(f"Scrolled to: ({scroll_x}, {scroll_y})")
-                except Exception as e:
-                    print(f"Error scrolling: {str(e)}")
+                element = find_and_wait_for_element(driver, action['targetElement'])
+                if element:
+                    element.click()
+                    print(f"Clicked element: {action['targetElement'].get('tagName', 'N/A')}")
+                    time.sleep(1)  # Wait for any potential page changes after click
             
             elif action_type == 'input':
-                try:
-                    element = find_element_by_multiple_attributes(driver, action)
-                    if element:
-                        element.clear()
-                        element.send_keys(action['value'])
-                        print(f"Entered text: '{action['value']}' into element: {action.get('value') or 'N/A'}")
-                    else:
-                        print(f"Element not found for input action: {action}")
-                except Exception as e:
-                    print(f"Error entering text: {str(e)}")
+                element = find_and_wait_for_element(driver, action['targetElement'])
+                if element:
+                    element.clear()
+                    element.send_keys(action['targetElement']['textContent'])
+                    print(f"Entered text: '{action['targetElement']['textContent']}' into element")
+                    time.sleep(0.5)  # Short wait after input
+            
+            elif action_type == 'mousemove':
+                # Ignore mousemove actions
+                pass
             
             else:
                 print(f"Unknown action type: {action_type}")
             
-            time.sleep(0.5)
+            # Check if page has changed unexpectedly
+            if driver.current_url != target_url:
+                print(f"Page changed unexpectedly to: {driver.current_url}")
+                # You might want to add logic here to handle unexpected changes
         
         print("Workflow executed successfully")
     except Exception as e:
         print(f"Error executing workflow: {str(e)}")
     finally:
         driver.quit()
+
+def set_cookies(driver, cookies):
+    successful_cookies = 0
+    for cookie in cookies:
+        try:
+            cookie_copy = {k: v for k, v in cookie.items() if k in ['name', 'value', 'domain', 'path']}
+            if cookie_copy['domain'].startswith('.'):
+                cookie_copy['domain'] = cookie_copy['domain'][1:]
+            if cookie_copy['domain'] in driver.current_url:
+                driver.add_cookie(cookie_copy)
+                successful_cookies += 1
+            else:
+                print(f"Skipping cookie for domain {cookie_copy['domain']}")
+        except Exception as e:
+            print(f"Error adding cookie {cookie_copy.get('name')}: {str(e)}")
+    print(f"Successfully added {successful_cookies} out of {len(cookies)} cookies")
+
+def find_and_wait_for_element(driver, element_info):
+    locators = get_locators(element_info)
+    for by, value in locators:
+        try:
+            element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((by, value)))
+            return element
+        except:
+            continue
+    print(f"Element not found: {element_info}")
+    return None
+
+def get_locators(element_info):
+    locators = []
+    if element_info.get('id'):
+        locators.append((By.ID, element_info['id']))
+    if element_info.get('classes'):
+        locators.append((By.CSS_SELECTOR, '.' + '.'.join(element_info['classes'])))
+    if element_info.get('tagName'):
+        locators.append((By.TAG_NAME, element_info['tagName']))
+    if element_info.get('textContent'):
+        locators.append((By.XPATH, f"//*[contains(text(), '{element_info['textContent']}')]"))
+    if element_info.get('path'):
+        locators.append((By.XPATH, '//' + '/'.join(element_info['path'].split(' > '))))
+    return locators
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

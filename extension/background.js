@@ -52,6 +52,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         chrome.storage.local.remove('recordedActions');
         sendResponse({ success: true });
         return false; // Synchronous response
+    } else if (message.type === 'getCookies') {
+        if (chrome.cookies && chrome.cookies.getAll) {
+            chrome.cookies.getAll({ url: sender.tab.url }, (cookies) => {
+                sendResponse(cookies);
+            });
+        } else {
+            console.warn('chrome.cookies API is not available');
+            sendResponse([]);
+        }
+        return true; // Indicates an asynchronous response
     }
 });
 
@@ -82,14 +92,27 @@ chrome.storage.local.get(['isRecording', 'recordedActions'], (data) => {
 // Listen for tab updates and inject content script if necessary
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete') {
-        chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            files: ['content.js']
-        }).then(() => {
-            console.log('Content script injected into tab', tabId);
-            chrome.tabs.sendMessage(tabId, { type: 'recordingStateChanged', isRecording });
-        }).catch((error) => {
-            console.log('Failed to inject content script into tab', tabId, error);
-        });
+        if (chrome.scripting && chrome.scripting.executeScript) {
+            chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                files: ['content.js']
+            }).then(() => {
+                console.log('Content script injected into tab', tabId);
+                chrome.tabs.sendMessage(tabId, { type: 'recordingStateChanged', isRecording });
+            }).catch((error) => {
+                console.log('Failed to inject content script into tab', tabId, error);
+            });
+        } else {
+            console.warn('chrome.scripting API is not available');
+            // Fallback method to inject content script
+            chrome.tabs.executeScript(tabId, { file: 'content.js' }, () => {
+                if (chrome.runtime.lastError) {
+                    console.log('Failed to inject content script into tab', tabId, chrome.runtime.lastError);
+                } else {
+                    console.log('Content script injected into tab', tabId);
+                    chrome.tabs.sendMessage(tabId, { type: 'recordingStateChanged', isRecording });
+                }
+            });
+        }
     }
 });

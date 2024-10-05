@@ -41,6 +41,20 @@ function promptEndpointAndSave() {
 }
 
 function saveWorkflow(endpoint, workflow) {
+    // Ensure the initial_href action includes cookies
+    if (workflow.length > 0 && workflow[0].type === 'initial_href') {
+        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+            chrome.cookies.getAll({ url: tabs[0].url }, function (cookies) {
+                workflow[0].cookies = cookies;
+                sendWorkflowToServer(endpoint, workflow);
+            });
+        });
+    } else {
+        sendWorkflowToServer(endpoint, workflow);
+    }
+}
+
+function sendWorkflowToServer(endpoint, workflow) {
     console.log('Saving workflow:', { endpoint, workflow });
     fetch('http://localhost:8000/uipi/create', {
         method: 'POST',

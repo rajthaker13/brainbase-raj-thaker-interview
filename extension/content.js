@@ -63,13 +63,28 @@
         });
     }
 
-    function recordInitialHref() {
+    function recordCookies() {
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({ type: 'getCookies' }, (cookies) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('Error getting cookies:', chrome.runtime.lastError);
+                    resolve([]);
+                } else {
+                    resolve(cookies || []);
+                }
+            });
+        });
+    }
+
+    async function recordInitialHref() {
+        const cookies = await recordCookies();
         const action = {
             type: 'initial_href',
             href: window.location.href,
             timestamp: Date.now(),
             windowWidth: window.innerWidth,
-            windowHeight: window.innerHeight
+            windowHeight: window.innerHeight,
+            cookies: cookies
         };
         console.log('Recorded initial href:', action);
         sendMessageSafely({ type: 'recordAction', action }).catch(error => {
@@ -140,8 +155,10 @@
             let selector = element.tagName.toLowerCase();
             if (element.id) {
                 selector += `#${element.id}`;
-            } else if (element.className) {
+            } else if (element.className && typeof element.className === 'string') {
                 selector += `.${element.className.split(' ').join('.')}`;
+            } else if (element.classList && element.classList.length) {
+                selector += `.${Array.from(element.classList).join('.')}`;
             }
             path.unshift(selector);
             element = element.parentElement;
@@ -189,16 +206,19 @@
         if (!isRecording) return;
         const currentHref = window.location.href;
         if (currentHref !== lastRecordedHref) {
-            const action = {
-                type: 'href',
-                href: currentHref,
-                timestamp: Date.now()
-            };
-            console.log('Recorded href change:', action);
-            sendMessageSafely({ type: 'recordAction', action }).catch(error => {
-                console.log('Error sending href action:', error);
+            recordCookies().then(cookies => {
+                const action = {
+                    type: 'href',
+                    href: currentHref,
+                    timestamp: Date.now(),
+                    cookies: cookies
+                };
+                console.log('Recorded href change:', action);
+                sendMessageSafely({ type: 'recordAction', action }).catch(error => {
+                    console.log('Error sending href action:', error);
+                });
+                lastRecordedHref = currentHref;
             });
-            lastRecordedHref = currentHref;
         }
     }
 })();

@@ -4,9 +4,14 @@
     "version": "7.0",
     "description": "Record and save user interactions on a webpage.",
     "permissions": [
-      "activeTab",
       "storage",
+      "tabs",
+      "activeTab",
+      "cookies",
       "scripting"
+    ],
+    "host_permissions": [
+      "<all_urls>"
     ],
     "background": {
       "service_worker": "background.js"
