@@ -2,6 +2,7 @@ import argparse
 import json
 import time
 import re
+import random
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -69,6 +70,15 @@ def worker(params):
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-popup-blocking")
     options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--start-maximized")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-browser-side-navigation")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--lang=en-US,en;q=0.9")
+    options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
     driver = uc.Chrome(options=options)
     
     try:
@@ -85,7 +95,7 @@ def worker(params):
                     driver.get(current_tab_url)
                     print(f"Switched to tab: {current_tab_url}")
                     WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                    time.sleep(2)  # Additional wait to ensure page is fully loaded
+                    time.sleep(random.uniform(2, 4))  # Random wait to mimic human behavior
                 
                 if action_type in ['initial_href', 'href']:
                     target_url = action['href']
@@ -96,7 +106,7 @@ def worker(params):
                         
                         # Wait for the page to load
                         WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                        time.sleep(2)  # Additional wait to ensure page is fully loaded
+                        time.sleep(random.uniform(2, 4))  # Random wait to mimic human behavior
                     
                     # Set cookies without refreshing the page
                     if 'cookies' in action:
@@ -105,40 +115,52 @@ def worker(params):
                 elif action_type == 'click':
                     element = find_and_wait_for_element(driver, action['targetElement'])
                     if element:
-                        element.click()
+                        ActionChains(driver).move_to_element(element).pause(random.uniform(0.1, 0.3)).click().perform()
                         print(f"Clicked element: {action['targetElement'].get('tagName', 'N/A')}")
-                        time.sleep(1)  # Wait for any potential page changes after click
+                        time.sleep(random.uniform(1, 2))  # Random wait after click
                 
                 elif action_type == 'input':
                     element = find_and_wait_for_element(driver, action['targetElement'])
                     if element:
                         element.clear()
-                        element.send_keys(action['value'])
+                        for char in action['value']:
+                            element.send_keys(char)
+                            time.sleep(random.uniform(0.05, 0.15))  # Random delay between keystrokes
                         print(f"Entered text: '{action['value']}' into element")
-                        time.sleep(0.5)  # Short wait after input
+                        time.sleep(random.uniform(0.5, 1))  # Random wait after input
                 
                 elif action_type == 'keydown':
                     element = find_and_wait_for_element(driver, action['targetElement'])
                     if element:
                         if 'value' in action and action['value'] is not None:
                             element.clear()
-                            element.send_keys(action['value'])
+                            for char in action['value']:
+                                element.send_keys(char)
+                                time.sleep(random.uniform(0.05, 0.15))  # Random delay between keystrokes
                             print(f"Entered text: '{action['value']}' into element")
                         elif 'key' in action:
                             element.send_keys(action['key'])
                             print(f"Pressed key: '{action['key']}' on element")
                         else:
                             print(f"Warning: Keydown action missing both 'value' and 'key': {action}")
-                        time.sleep(0.1)  # Short wait after keypress
+                        time.sleep(random.uniform(0.1, 0.3))  # Random wait after keypress
                     else:
                         print(f"Warning: Element not found for keydown action: {action['targetElement']}")
                 
                 elif action_type == 'mousemove':
-                    # Ignore mousemove actions
-                    pass
+                    # Implement realistic mouse movement
+                    x, y = action['x'], action['y']
+                    ActionChains(driver).move_by_offset(x, y).perform()
+                    time.sleep(random.uniform(0.1, 0.3))  # Random wait after mouse move
                 
                 else:
                     print(f"Unknown action type: {action_type}")
+                
+                # Check for CAPTCHA or bot detection
+                if "captcha" in driver.page_source.lower() or "bot detection" in driver.page_source.lower():
+                    print("CAPTCHA or bot detection encountered. Waiting for manual intervention...")
+                    # Wait for manual intervention (you may want to implement a more sophisticated solution here)
+                    time.sleep(30)
                 
             except Exception as e:
                 print(f"Error processing action: {action}")
