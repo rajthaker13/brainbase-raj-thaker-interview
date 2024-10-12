@@ -84,19 +84,24 @@ def worker(params):
     
     try:
         workflow = params.get('workflow', [])
-        current_tab_url = None
+        
+        # Find the first action with a URL (should be the initial_href)
+        initial_action = next((action for action in workflow if action.get('type') in ['initial_href', 'href']), None)
+        
+        if initial_action:
+            initial_url = initial_action.get('href')
+            driver.get(initial_url)
+            print(f"Navigated to initial URL: {initial_url}")
+            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            time.sleep(2)  # Additional wait to ensure page is fully loaded
+            
+            # Set initial cookies if available
+            if 'cookies' in initial_action:
+                set_cookies(driver, initial_action['cookies'])
         
         for action in workflow:
             try:
                 action_type = action.get('type')
-                
-                # Check if we need to switch to a new tab
-                if action.get('tabUrl') and action['tabUrl'] != current_tab_url:
-                    current_tab_url = action['tabUrl']
-                    driver.get(current_tab_url)
-                    print(f"Switched to tab: {current_tab_url}")
-                    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                    time.sleep(2)  # Additional wait to ensure page is fully loaded
                 
                 if action_type in ['initial_href', 'href']:
                     target_url = action['href']
