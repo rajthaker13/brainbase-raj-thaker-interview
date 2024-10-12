@@ -54,7 +54,10 @@
 
     function sendMessageSafely(message) {
         return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage(message, response => {
+            chrome.runtime.sendMessage({
+                ...message,
+                tabId: chrome.runtime.id // Add the tab ID to each message
+            }, response => {
                 if (chrome.runtime.lastError) {
                     console.log("Failed to send message to background script:", chrome.runtime.lastError);
                     reject(chrome.runtime.lastError);
@@ -214,7 +217,8 @@
                 timestamp: Date.now(),
                 targetElement: getElementInfo(target),
                 key: event.key,
-                keyCode: event.keyCode
+                keyCode: event.keyCode,
+                value: target.value || ''  // Add this line to capture the current value
             };
             console.log('Recorded keydown:', action);
             sendMessageSafely({ type: 'recordAction', action }).catch(error => {

@@ -40,8 +40,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ isRecording });
         return false; // Synchronous response
     } else if (message.type === 'recordAction' && isRecording) {
-        recordedActions.push(message.action);
-        console.log('Recorded action:', message.action);
+        const action = {
+            ...message.action,
+            tabId: sender.tab.id, // Add the tab ID to each recorded action
+            tabUrl: sender.tab.url // Add the tab URL to each recorded action
+        };
+        recordedActions.push(action);
+        console.log('Recorded action:', action);
         sendResponse({ success: true });
         return false; // Synchronous response
     } else if (message.type === 'getRecordedActions') {

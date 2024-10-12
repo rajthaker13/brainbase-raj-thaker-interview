@@ -73,58 +73,78 @@ def worker(params):
     
     try:
         workflow = params.get('workflow', [])
+        current_tab_url = None
         
         for action in workflow:
-            action_type = action.get('type')
-            
-            if action_type in ['initial_href', 'href']:
-                current_url = driver.current_url
-                target_url = action['href']
+            try:
+                action_type = action.get('type')
                 
-                if current_url != target_url:
-                    driver.get(target_url)
-                    print(f"Navigated to: {target_url}")
-                    
-                    # Wait for the page to load
+                # Check if we need to switch to a new tab
+                if action.get('tabUrl') and action['tabUrl'] != current_tab_url:
+                    current_tab_url = action['tabUrl']
+                    driver.get(current_tab_url)
+                    print(f"Switched to tab: {current_tab_url}")
                     WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
                     time.sleep(2)  # Additional wait to ensure page is fully loaded
                 
-                # Set cookies without refreshing the page
-                if 'cookies' in action:
-                    set_cookies(driver, action['cookies'])
-            
-            elif action_type == 'click':
-                element = find_and_wait_for_element(driver, action['targetElement'])
-                if element:
-                    element.click()
-                    print(f"Clicked element: {action['targetElement'].get('tagName', 'N/A')}")
-                    time.sleep(1)  # Wait for any potential page changes after click
-            
-            elif action_type == 'input':
-                element = find_and_wait_for_element(driver, action['targetElement'])
-                if element:
-                    element.clear()
-                    element.send_keys(action['value'])
-                    print(f"Entered text: '{action['value']}' into element")
-                    time.sleep(0.5)  # Short wait after input
-            
-            elif action_type == 'keydown':
-                element = find_and_wait_for_element(driver, action['targetElement'])
-                if element:
-                    element.send_keys(action['key'])
-                    print(f"Pressed key: '{action['key']}' on element")
-                    time.sleep(0.1)  # Short wait after keypress
-            
-            elif action_type == 'mousemove':
-                # Ignore mousemove actions
-                pass
-            
-            else:
-                print(f"Unknown action type: {action_type}")
-            
-            # Check if page has changed unexpectedly
-            if driver.current_url != target_url:
-                print(f"Page changed unexpectedly to: {driver.current_url}")
+                if action_type in ['initial_href', 'href']:
+                    target_url = action['href']
+                    
+                    if driver.current_url != target_url:
+                        driver.get(target_url)
+                        print(f"Navigated to: {target_url}")
+                        
+                        # Wait for the page to load
+                        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                        time.sleep(2)  # Additional wait to ensure page is fully loaded
+                    
+                    # Set cookies without refreshing the page
+                    if 'cookies' in action:
+                        set_cookies(driver, action['cookies'])
+                
+                elif action_type == 'click':
+                    element = find_and_wait_for_element(driver, action['targetElement'])
+                    if element:
+                        element.click()
+                        print(f"Clicked element: {action['targetElement'].get('tagName', 'N/A')}")
+                        time.sleep(1)  # Wait for any potential page changes after click
+                
+                elif action_type == 'input':
+                    element = find_and_wait_for_element(driver, action['targetElement'])
+                    if element:
+                        element.clear()
+                        element.send_keys(action['value'])
+                        print(f"Entered text: '{action['value']}' into element")
+                        time.sleep(0.5)  # Short wait after input
+                
+                elif action_type == 'keydown':
+                    element = find_and_wait_for_element(driver, action['targetElement'])
+                    if element:
+                        if 'value' in action and action['value'] is not None:
+                            element.clear()
+                            element.send_keys(action['value'])
+                            print(f"Entered text: '{action['value']}' into element")
+                        elif 'key' in action:
+                            element.send_keys(action['key'])
+                            print(f"Pressed key: '{action['key']}' on element")
+                        else:
+                            print(f"Warning: Keydown action missing both 'value' and 'key': {action}")
+                        time.sleep(0.1)  # Short wait after keypress
+                    else:
+                        print(f"Warning: Element not found for keydown action: {action['targetElement']}")
+                
+                elif action_type == 'mousemove':
+                    # Ignore mousemove actions
+                    pass
+                
+                else:
+                    print(f"Unknown action type: {action_type}")
+                
+            except Exception as e:
+                print(f"Error processing action: {action}")
+                print(f"Error details: {str(e)}")
+                # Continue with the next action instead of stopping the entire workflow
+                continue
         
         print("Workflow executed successfully")
     except Exception as e:
