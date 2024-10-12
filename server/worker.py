@@ -11,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import undetected_chromedriver as uc
+from selenium.webdriver.common.keys import Keys
 
 def escape_css_class(cls):
     return re.sub(r'([^a-zA-Z0-9_-])', r'\\\1', cls)
@@ -95,7 +96,7 @@ def worker(params):
                     driver.get(current_tab_url)
                     print(f"Switched to tab: {current_tab_url}")
                     WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                    time.sleep(random.uniform(2, 4))  # Random wait to mimic human behavior
+                    time.sleep(2)  # Additional wait to ensure page is fully loaded
                 
                 if action_type in ['initial_href', 'href']:
                     target_url = action['href']
@@ -122,36 +123,26 @@ def worker(params):
                 elif action_type == 'input':
                     element = find_and_wait_for_element(driver, action['targetElement'])
                     if element:
-                        element.clear()
-                        for char in action['value']:
-                            element.send_keys(char)
-                            time.sleep(random.uniform(0.05, 0.15))  # Random delay between keystrokes
-                        print(f"Entered text: '{action['value']}' into element")
-                        time.sleep(random.uniform(0.5, 1))  # Random wait after input
-                
-                elif action_type == 'keydown':
-                    element = find_and_wait_for_element(driver, action['targetElement'])
-                    if element:
-                        if 'value' in action and action['value'] is not None:
-                            element.clear()
-                            for char in action['value']:
-                                element.send_keys(char)
-                                time.sleep(random.uniform(0.05, 0.15))  # Random delay between keystrokes
-                            print(f"Entered text: '{action['value']}' into element")
-                        elif 'key' in action:
-                            element.send_keys(action['key'])
-                            print(f"Pressed key: '{action['key']}' on element")
-                        else:
-                            print(f"Warning: Keydown action missing both 'value' and 'key': {action}")
-                        time.sleep(random.uniform(0.1, 0.3))  # Random wait after keypress
-                    else:
-                        print(f"Warning: Element not found for keydown action: {action['targetElement']}")
+                        if action['inputType'] == 'insertText':
+                            element.send_keys(action['value'])
+                        elif action['inputType'] == 'deleteContentBackward':
+                            element.send_keys(Keys.BACKSPACE)
+                        elif action['inputType'] == 'deleteContentForward':
+                            element.send_keys(Keys.DELETE)
+                        print(f"Performed input action: '{action['inputType']}' with value '{action['value']}'")
+                        time.sleep(random.uniform(0.05, 0.15))  # Random delay between keystrokes
                 
                 elif action_type == 'mousemove':
-                    # Implement realistic mouse movement
-                    x, y = action['x'], action['y']
-                    ActionChains(driver).move_by_offset(x, y).perform()
-                    time.sleep(random.uniform(0.1, 0.3))  # Random wait after mouse move
+                    try:
+                        element = find_and_wait_for_element(driver, action['targetElement'])
+                        if element:
+                            ActionChains(driver).move_to_element(element).perform()
+                        else:
+                            x, y = action['x'], action['y']
+                            ActionChains(driver).move_by_offset(x, y).perform()
+                        time.sleep(random.uniform(0.1, 0.3))  # Random wait after mouse move
+                    except Exception as e:
+                        print(f"Error during mouse movement: {str(e)}")
                 
                 else:
                     print(f"Unknown action type: {action_type}")

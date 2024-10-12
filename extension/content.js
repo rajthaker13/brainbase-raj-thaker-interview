@@ -195,34 +195,28 @@
     function recordInput(event) {
         if (!isRecording) return;
         const target = event.target;
-        const action = {
-            type: 'input',
-            timestamp: Date.now(),
-            targetElement: getElementInfo(target),
-            value: target.value,
-            inputType: event.inputType
-        };
-        console.log('Recorded input:', action);
-        sendMessageSafely({ type: 'recordAction', action }).catch(error => {
-            console.log('Error sending input action:', error);
-        });
-    }
-
-    function recordKeydown(event) {
-        if (!isRecording) return;
-        const target = event.target;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+            let value = '';
+            let inputType = event.inputType;
+
+            if (inputType === 'insertText') {
+                value = event.data;
+            } else if (inputType === 'deleteContentBackward') {
+                value = 'Backspace';
+            } else if (inputType === 'deleteContentForward') {
+                value = 'Delete';
+            }
+
             const action = {
-                type: 'keydown',
+                type: 'input',
                 timestamp: Date.now(),
                 targetElement: getElementInfo(target),
-                key: event.key,
-                keyCode: event.keyCode,
-                value: target.value || ''  // Add this line to capture the current value
+                value: value,
+                inputType: inputType
             };
-            console.log('Recorded keydown:', action);
+            console.log('Recorded input:', action);
             sendMessageSafely({ type: 'recordAction', action }).catch(error => {
-                console.log('Error sending keydown action:', error);
+                console.log('Error sending input action:', error);
             });
         }
     }
